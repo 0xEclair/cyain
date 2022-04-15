@@ -65,7 +65,7 @@ func (bc *BlockChain) AddBlock(data string) {
 		lastHash = b.Get([]byte("l"))
 		return nil
 	}
-	err := bc.db.View(viewf)
+	_ = bc.db.View(viewf)
 	
 	newBlock := NewBlock(data, lastHash)
 	
@@ -79,8 +79,7 @@ func (bc *BlockChain) AddBlock(data string) {
 		return nil
 	}
 	
-	_ = err
-	err = bc.db.Update(updatef)
+	_ = bc.db.Update(updatef)
 }
 
 func NewGenesisBlock() *Block {
