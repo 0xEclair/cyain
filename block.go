@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/hex"
 	"strconv"
 	"time"
 	
@@ -137,7 +138,7 @@ func DeserializeBlock(data []byte) *Block {
 
 type BlockchainIterator struct {
 	currentHash []byte
-	db *bolt.DB
+	db          *bolt.DB
 }
 
 func (bc *BlockChain) Iterator() *BlockchainIterator {
@@ -164,4 +165,29 @@ func (i *BlockchainIterator) Next() *Block {
 	
 	_ = err
 	return block
+}
+
+func (bc *BlockChain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+	unspentOutputs := make(map[string][]int)
+	unspentTxs := bc.FindUnspentTransactions(address)
+	accumulated := 0
+
+Work:
+	for _, tx := range unspentTxs {
+		txID := hex.EncodeToString(tx.ID)
+		for outIdx, out := range tx.Vout {
+			if out.CanBeUnlockedWith(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOutputs[txID] = apppend(unspentOutputs[txID], outIdx)
+				
+				if accumulated >= amount {
+					// still run the code
+					// would return accumulated, unspentOutputs;
+					break Work
+				}
+			}
+		}
+	}
+	
+	return accumulated, unspentOutputs
 }
