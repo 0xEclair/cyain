@@ -296,3 +296,18 @@ Work:
 	
 	return accumulated, unspentOutputs
 }
+
+func (bc *BlockChain) FindUTXO(address string) []TxOutput {
+	var UTXOs []TxOutput
+	unspentTransactions := bc.FindUnspentTransactions(address)
+	
+	for _, tx := range unspentTransactions {
+		for _, out := range tx.Vout {
+			if out.CanBeUnlockedWith(address) {
+				UTXOs = append(UTXOs, out)
+			}
+		}
+	}
+	
+	return UTXOs
+}

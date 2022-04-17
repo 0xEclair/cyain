@@ -55,7 +55,7 @@ func (cli *CLI) Run() {
 			getBalanceCmd.Usage()
 			os.Exit(1)
 		}
-		//cli.getBalance(*getBalanceAddress)
+		cli.getBalance(*getBalanceAddress)
 	}
 	
 	if createBlockchainCmd.Parsed() {
@@ -131,16 +131,16 @@ func (cli *CLI) send(from, to string, amount int) {
 	fmt.Println("Success!")
 }
 
-//func (cli *CLI) getBalance(address string) {
-//	bc := NewBlockchain(address)
-//	defer bc.db.Close()
-//
-//	balance := 0
-//	UTXOs := bc.FindUTXO(address)
-//
-//	for _, out := range UTXOs {
-//		balance += out.Value
-//	}
-//
-//	fmt.Printf("Balance of '%s': %d\n", address, balance)
-//}
+func (cli *CLI) getBalance(address string) {
+	bc := NewBlockchain(address)
+	defer bc.db.Close()
+	
+	balance := 0
+	UTXOs := bc.FindUTXO(address)
+	
+	for _, out := range UTXOs {
+		balance += out.Value
+	}
+	
+	fmt.Printf("Balance of '%s': %d\n", address, balance)
+}
