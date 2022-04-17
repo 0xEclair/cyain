@@ -18,6 +18,7 @@ const (
 
 type Block struct {
 	Timestamp     int64
+	Transactions  []*Transaction
 	Data          []byte
 	PrevBlockHash []byte
 	Hash          []byte
@@ -39,6 +40,7 @@ func (b *Block) SetHash() {
 func NewBlock(data string, prevBlockHash []byte) *Block {
 	block := &Block{
 		time.Now().Unix(),
+		nil,
 		[]byte(data),
 		prevBlockHash,
 		[]byte{},
@@ -167,6 +169,47 @@ func (i *BlockchainIterator) Next() *Block {
 	return block
 }
 
+func (bc *BlockChain) FindUnspentTransactions(address string) []Transaction {
+	var unspentTxs []Transaction
+	spentTxOs := make(map[string][]int)
+	bci := bc.Iterator()
+	
+	for {
+		block := bci.Next()
+		for _, tx := range block.Transactions {
+			txID := hex.EncodeToString(tx.ID)
+		
+		Outputs:
+			for outIdx, out := range tx.Vout {
+				if spentTxOs[txID] != nil {
+					for _, spentOut := range spentTxOs[txID] {
+						if spentOut == outIdx {
+							continue Outputs
+						}
+					}
+				}
+				
+				if out.CanBeUnlockedWith(address) {
+					unspentTxs = append(unspentTxs, *tx)
+				}
+			}
+			
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Vin {
+					if in.CanUnlockOutputWith(address) {
+						inTxID := hex.EncodeToString(in.Txid)
+						spentTxOs[inTxID] = append(spentTxOs[inTxID], in.Vout)
+					}
+				}
+			}
+		}
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+	return unspentTxs
+}
+
 func (bc *BlockChain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
 	unspentTxs := bc.FindUnspentTransactions(address)
@@ -178,7 +221,7 @@ Work:
 		for outIdx, out := range tx.Vout {
 			if out.CanBeUnlockedWith(address) && accumulated < amount {
 				accumulated += out.Value
-				unspentOutputs[txID] = apppend(unspentOutputs[txID], outIdx)
+				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
 				
 				if accumulated >= amount {
 					// still run the code
