@@ -5,8 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+	"fmt"
 	"log"
 )
+
+const subsidy = 10
 
 type Transaction struct {
 	ID   []byte
@@ -79,6 +82,30 @@ func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transactio
 	}
 	
 	tx := Transaction{nil, inputs, outputs}
+	tx.SetID()
+	
+	return &tx
+}
+
+func NewCoinbaseTx(to, data string) *Transaction {
+	if data == "" {
+		data = fmt.Sprintf("Reward to '%s'", to)
+	}
+	
+	txin := TxInput{
+		[]byte{},
+		-1,
+		data,
+	}
+	txout := TxOutput{
+		subsidy,
+		to,
+	}
+	tx := Transaction{
+		nil,
+		[]TxInput{txin},
+		[]TxOutput{txout},
+	}
 	tx.SetID()
 	
 	return &tx

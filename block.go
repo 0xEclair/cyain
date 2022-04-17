@@ -5,43 +5,32 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
-	"strconv"
+	"fmt"
+	"log"
+	"os"
 	"time"
 	
 	"github.com/boltdb/bolt"
 )
 
 const (
-	dbFile       = "blockchain.db"
-	blocksBucket = "blocks"
+	dbFile              = "blockchain.db"
+	blocksBucket        = "blocks"
+	genesisCoinbaseData = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
 )
 
 type Block struct {
 	Timestamp     int64
 	Transactions  []*Transaction
-	Data          []byte
 	PrevBlockHash []byte
 	Hash          []byte
 	Nonce         int
 }
 
-func (b *Block) SetHash() {
-	timestamp := []byte(strconv.FormatInt(b.Timestamp, 10))
-	headers := bytes.Join([][]byte{
-		b.PrevBlockHash,
-		b.Data,
-		timestamp,
-	}, []byte{})
-	hash := sha256.Sum256(headers)
-	
-	b.Hash = hash[:]
-}
-
-func NewBlock(data string, prevBlockHash []byte) *Block {
+func NewBlock(trasnactions []*Transaction, prevBlockHash []byte) *Block {
 	block := &Block{
 		time.Now().Unix(),
-		nil,
-		[]byte(data),
+		trasnactions,
 		prevBlockHash,
 		[]byte{},
 		0,
@@ -60,7 +49,7 @@ type BlockChain struct {
 	db  *bolt.DB
 }
 
-func (bc *BlockChain) AddBlock(data string) {
+func (bc *BlockChain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
 	
 	viewf := func(tx *bolt.Tx) error {
@@ -68,53 +57,114 @@ func (bc *BlockChain) AddBlock(data string) {
 		lastHash = b.Get([]byte("l"))
 		return nil
 	}
-	_ = bc.db.View(viewf)
+	err := bc.db.View(viewf)
 	
-	newBlock := NewBlock(data, lastHash)
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	newBlock := NewBlock(transactions, lastHash)
 	
 	updatef := func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
+		
 		err := b.Put(newBlock.Hash, newBlock.SerializeBlock())
+		if err != nil {
+			log.Panic(err)
+		}
+		
 		err = b.Put([]byte("l"), newBlock.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+		
 		bc.tip = newBlock.Hash
 		
-		_ = err
 		return nil
 	}
 	
-	_ = bc.db.Update(updatef)
+	err = bc.db.Update(updatef)
 }
 
-func NewGenesisBlock() *Block {
-	return NewBlock("Genesis Block", []byte{})
+func NewGenesisBlock(coinbase *Transaction) *Block {
+	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
-func NewBlockchain() *BlockChain {
+func NewBlockchain(address string) *BlockChain {
+	if dbExists() == false {
+		fmt.Println("No existing blockchain found. Create one first.")
+		os.Exit(1)
+	}
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
 	
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-		
-		if b == nil {
-			genesis := NewGenesisBlock()
-			b, _ := tx.CreateBucket([]byte(blocksBucket))
-			err = b.Put(genesis.Hash, genesis.SerializeBlock())
-			err = b.Put([]byte("l"), genesis.Hash)
-			tip = genesis.Hash
-		} else {
-			tip = b.Get([]byte("l"))
-		}
+		tip = b.Get([]byte("l"))
 		
 		return nil
 	})
+	if err != nil {
+		log.Panic(err)
+	}
 	
 	bc := BlockChain{
 		tip,
 		db,
 	}
+	return &bc
+}
+
+func dbExists() bool {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+func CreateBlockchain(address string) *BlockChain {
+	if dbExists() {
+		fmt.Println("Blockchain already exists.")
+		os.Exit(254)
+	}
 	
-	_ = err
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	err = db.Update(func(tx *bolt.Tx) error {
+		cbtx := NewCoinbaseTx(address, genesisCoinbaseData)
+		genesis := NewGenesisBlock(cbtx)
+		
+		b, err := tx.CreateBucket([]byte(blocksBucket))
+		if err != nil {
+			log.Panic(err)
+		}
+		
+		err = b.Put(genesis.Hash, genesis.SerializeBlock())
+		if err != nil {
+			log.Panic(err)
+		}
+		
+		err = b.Put([]byte("l"), genesis.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+		tip = genesis.Hash
+		
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	bc := BlockChain{tip, db}
+	
 	return &bc
 }
 
@@ -126,6 +176,18 @@ func (b *Block) SerializeBlock() []byte {
 	_ = err
 	
 	return result.Bytes()
+}
+
+func (b *Block) HashTransaction() []byte {
+	var txHashes [][]byte
+	var txHash [32]byte
+	
+	for _, tx := range b.Transactions {
+		txHashes = append(txHashes, tx.ID)
+	}
+	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
+	
+	return txHash[:]
 }
 
 func DeserializeBlock(data []byte) *Block {
