@@ -5,6 +5,10 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+
+	"golang.org/x/crypto/ripemd160"
+
+	"cyain/utils"
 )
 
 const (
@@ -46,7 +50,7 @@ func (w Wallet) GetAddress() []byte {
 	checksum := checksum(versionedPayload)
 
 	fullPayload := append(versionedPayload, checksum...)
-	address := Base58Encode(fullPayload)
+	address := utils.Base58Encode(fullPayload)
 
 	return address
 }
@@ -54,7 +58,7 @@ func (w Wallet) GetAddress() []byte {
 func HashPubKey(pubkey []byte) []byte {
 	public := sha256.Sum256(pubkey)
 	RIPEMD160Hasher := ripemd160.New()
-	_, _ = RIPEMD160Hasher.Write(public)
+	_, _ = RIPEMD160Hasher.Write(public[:])
 	publicRIPEMD160 := RIPEMD160Hasher.Sum(nil)
 
 	return publicRIPEMD160
