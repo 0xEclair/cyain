@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	version            = byte(0x00)
+	version            = byte(0x01)
 	addressChecksumLen = 4
 )
 
