@@ -73,11 +73,17 @@ func NewTxOutput(value int, address string) *TxOutput {
 	return txo
 }
 
-func NewUTXOTransaction(wallet *Wallet, to string, amount int, bc *BlockChain) *Transaction {
+func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	acc, validOutputs := bc.FindSpendableOutputs(wallet.PublicKey, amount)
+	wallets, err := NewWallets()
+	if err != nil {
+		log.Panic(err)
+	}
+	wallet := wallets.GetWallet(from)
+	pubKeyHash := HashPubKey(wallet.PublicKey)
+	acc, validOutputs := bc.FindSpendableOutputs(pubKeyHash, amount)
 
 	if acc < amount {
 		log.Panic("ERROR: Not enough funds")
@@ -99,7 +105,7 @@ func NewUTXOTransaction(wallet *Wallet, to string, amount int, bc *BlockChain) *
 	outputs = append(outputs, *NewTxOutput(amount, to))
 
 	if acc > amount {
-		outputs = append(outputs, NewTxOutput(acc-amount, from))
+		outputs = append(outputs, *NewTxOutput(acc-amount, from))
 	}
 
 	tx := Transaction{nil, inputs, outputs}
