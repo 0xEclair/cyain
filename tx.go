@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
-	"cyain/utils"
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
 	"log"
+
+	"cyain/utils"
 )
 
 const subsidy = 10
