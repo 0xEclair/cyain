@@ -64,9 +64,9 @@ func (w Wallet) GetAddress() []byte {
 
 func HashPubKey(pubkey []byte) []byte {
 	public := sha256.Sum256(pubkey)
-	RIPEMD160Hasher := ripemd160.New()
-	_, _ = RIPEMD160Hasher.Write(public[:])
-	publicRIPEMD160 := RIPEMD160Hasher.Sum(nil)
+	RIPEMD160Hash := ripemd160.New()
+	_, _ = RIPEMD160Hash.Write(public[:])
+	publicRIPEMD160 := RIPEMD160Hash.Sum(nil)
 
 	return publicRIPEMD160
 }
