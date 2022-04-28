@@ -20,7 +20,7 @@ import (
 const (
 	version            = byte(0x01)
 	addressChecksumLen = 4
-	walletFile         = "wallet.dat"
+	wallet_file        = "wallet.dat"
 )
 
 type Wallet struct {
@@ -113,11 +113,11 @@ func (ws Wallets) GetWallet(address string) Wallet {
 
 // LoadFromFile loads wallets from the file
 func (ws *Wallets) LoadFromFile() error {
-	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
+	if _, err := os.Stat(wallet_file); os.IsNotExist(err) {
 		return err
 	}
 
-	fileContent, err := ioutil.ReadFile(walletFile)
+	fileContent, err := ioutil.ReadFile(wallet_file)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -147,7 +147,7 @@ func (ws Wallets) SaveToFile() {
 		log.Panic(err)
 	}
 
-	err = ioutil.WriteFile(walletFile, content.Bytes(), 0644)
+	err = ioutil.WriteFile(wallet_file, content.Bytes(), 0644)
 	if err != nil {
 		log.Panic(err)
 	}
