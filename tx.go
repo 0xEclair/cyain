@@ -13,7 +13,7 @@ import (
 	"cyain/utils"
 )
 
-// 奖励金额
+// reward for mining
 const subsidy = 10
 
 type Transaction struct {
