@@ -13,6 +13,7 @@ import (
 	"cyain/utils"
 )
 
+// 奖励金额
 const subsidy = 10
 
 type Transaction struct {
@@ -117,6 +118,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transactio
 	return &tx
 }
 
+// coinbase -> input是0，但是有output的tx
 func NewCoinbaseTx(to, data string) *Transaction {
 	if data == "" {
 		data = fmt.Sprintf("Reward to '%s'", to)
