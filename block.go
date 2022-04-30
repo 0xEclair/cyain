@@ -256,6 +256,7 @@ func (bc *BlockChain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
 				}
 			}
 
+			// coinbase tx没有input
 			if tx.IsCoinbase() == false {
 				for _, in := range tx.Vin {
 					if in.UsesKey(pubKeyHash) {
@@ -265,6 +266,7 @@ func (bc *BlockChain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
 				}
 			}
 		}
+		// genesis block -> break
 		if len(block.PrevBlockHash) == 0 {
 			break
 		}
