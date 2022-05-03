@@ -71,6 +71,21 @@ func (out *TxOutput) IsLockedWithKey(pubKeyHash []byte) bool {
 	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
 }
 
+type TxOutputs struct {
+	Outputs []TxOutput
+}
+
+func (outs TxOutputs) Serialize() []byte {
+	var buff bytes.Buffer
+	
+	enc := gob.NewEncoder(&buff)
+	err := enc.Encode(outs)
+	if err != nil {
+		log.Panic(err)
+	}
+	return buff.Bytes()
+}
+
 func NewTxOutput(value int, address string) *TxOutput {
 	txo := &TxOutput{
 		value,
@@ -256,9 +271,19 @@ func (u UTXOSet) Reindex() {
 	
 	err := db.Update(func(tx *bolt.Tx) error {
 		err := tx.DeleteBucket(bucketName)
+		if err != nil && err != bolt.ErrBucketNotFound {
+			log.Panic(err)
+		}
+		
 		_, err = tx.CreateBucket(bucketName)
+		if err != nil {
+			log.Panic(err)
+		}
+		return nil
 	})
-	
+	if err != nil {
+		log.Panic(err)
+	}
 	UTXO := u.BlockChain.FindUTXO()
 	
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -266,7 +291,22 @@ func (u UTXOSet) Reindex() {
 		
 		for txID, outs := range UTXO {
 			key, err := hex.DecodeString(txID)
+			if err != nil {
+				log.Panic(err)
+			}
 			err = b.Put(key, outs.Serialize())
+			if err != nil {
+				log.Panic(err)
+			}
+			return nil
 		}
 	})
+}
+
+func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[string][]int) {
+	unspentOutputs := make(map[string][]int)
+	accumulated := 0
+	db := u.BlockChain.db
+	
+	
 }
