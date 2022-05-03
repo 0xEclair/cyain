@@ -9,6 +9,7 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"github.com/boltdb/bolt"
 	"log"
 	"math/big"
 	
@@ -17,6 +18,7 @@ import (
 
 // reward for mining
 const subsidy = 10
+const utxoBucket = "chainstate"
 
 type Transaction struct {
 	ID   []byte
@@ -98,6 +100,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transactio
 	for txid, outs := range validOutputs {
 		txID, _ := hex.DecodeString(txid)
 		for _, out := range outs {
+			// 引用了之前的out
 			input := TxInput{
 				txID,
 				out,
@@ -181,6 +184,7 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTxs map[string]Transac
 	for inID, vin := range txCopy.Vin {
 		prevTx := prevTxs[hex.EncodeToString(vin.Txid)]
 		txCopy.Vin[inID].Signature = nil
+		// vout 作为int只是为了表示在tx中，这个out的序号
 		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
 		txCopy.ID = txCopy.Hash()
 		txCopy.Vin[inID].PubKey = nil
@@ -240,4 +244,29 @@ func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
 	}
 	
 	return true
+}
+
+type UTXOSet struct {
+	BlockChain *BlockChain
+}
+
+func (u UTXOSet) Reindex() {
+	db := u.BlockChain.db
+	bucketName := []byte(utxoBucket)
+	
+	err := db.Update(func(tx *bolt.Tx) error {
+		err := tx.DeleteBucket(bucketName)
+		_, err = tx.CreateBucket(bucketName)
+	})
+	
+	UTXO := u.BlockChain.FindUTXO()
+	
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		
+		for txID, outs := range UTXO {
+			key, err := hex.DecodeString(txID)
+			err = b.Put(key, outs.Serialize())
+		}
+	})
 }
