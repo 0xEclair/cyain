@@ -311,7 +311,7 @@ func (u UTXOSet) Reindex() {
 			if err != nil {
 				log.Panic(err)
 			}
-			
+			// txid -> outputs
 			err = b.Put(key, outs.Serialize())
 			if err != nil {
 				log.Panic(err)

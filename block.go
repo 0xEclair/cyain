@@ -256,6 +256,7 @@ func (i *BlockchainIterator) Next() *Block {
 	return block
 }
 
+// 未使用的output
 func (bc *BlockChain) FindUTXO() map[string]TxOutputs {
 	UTXO := make(map[string]TxOutputs)
 	spentTXOs := make(map[string][]int)
