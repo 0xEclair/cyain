@@ -51,7 +51,7 @@ type BlockChain struct {
 	db  *bolt.DB
 }
 
-func (bc *BlockChain) MineBlock(transactions []*Transaction) {
+func (bc *BlockChain) MineBlock(transactions []*Transaction) *Block {
 	var lastHash []byte
 	
 	for _, tx := range transactions {
@@ -92,13 +92,17 @@ func (bc *BlockChain) MineBlock(transactions []*Transaction) {
 	}
 	
 	err = bc.db.Update(updatef)
+	if err != nil {
+		log.Panic(err)
+	}
+	return newBlock
 }
 
 func NewGenesisBlock(coinbase *Transaction) *Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
-func NewBlockchain(address string) *BlockChain {
+func NewBlockchain() *BlockChain {
 	if dbExists() == false {
 		fmt.Println("No existing blockchain found. Create one first.")
 		os.Exit(1)
@@ -307,19 +311,42 @@ Work:
 	return accumulated, unspentOutputs
 }
 
-func (bc *BlockChain) FindUTXO(pubKeyHash []byte) []TxOutput {
-	var UTXOs []TxOutput
-	unspentTransactions := bc.FindUnspentTransactions(pubKeyHash)
+func (bc *BlockChain) FindUTXO() map[string]TxOutputs {
+	UTXO := make(map[string]TxOutputs)
+	spentTXOs := make(map[string][]int)
+	bci := bc.Iterator()
 	
-	for _, tx := range unspentTransactions {
-		for _, out := range tx.Vout {
-			if out.IsLockedWithKey(pubKeyHash) {
-				UTXOs = append(UTXOs, out)
+	for {
+		block := bci.Next()
+		
+		for _, tx := range block.Transactions {
+			txID := hex.EncodeToString(tx.ID)
+		
+		Outputs:
+			for outIdx, out := range tx.Vout {
+				if spentTXOs[txID] != nil {
+					for _, spentTXOs := range spentTXOs[txID] {
+						if spentTXOs == outIdx {
+							continue Outputs
+						}
+					}
+				}
+				outs := UTXO[txID]
+				outs.Outputs = append(outs.Outputs, out)
+				UTXO[txID] = outs
+			}
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Vin {
+					inTxID := hex.EncodeToString(in.Txid)
+					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
+				}
 			}
 		}
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
 	}
-	
-	return UTXOs
+	return UTXO
 }
 
 func (bc *BlockChain) FindTransaction(ID []byte) (Transaction, error) {
@@ -362,78 +389,4 @@ func (bc *BlockChain) VerifyTransaction(tx *Transaction) bool {
 	}
 	
 	return tx.Verify(prevTXs)
-}
-
-func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TxOutput {
-	var UTXOs []TxOutput
-	db := u.BlockChain.db
-	
-	err := db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(utxoBucket))
-		c := b.Cursor()
-		
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			outs := DeserializeOutputs(v)
-			
-			for _, out := range outs.Outputs {
-				if out.IsLockedWithKey(pubKeyHash) {
-					UTXOs = append(UTXOs, out)
-				}
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		log.Panic(err)
-	}
-	return UTXOs
-}
-
-func (u UTXOSet) Update(block *Block) {
-	db := u.BlockChain.db
-	
-	err := db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(utxoBucket))
-		
-		for _, tx := range block.Transactions {
-			if tx.IsCoinbase() == false {
-				for _, vin := range tx.Vin {
-					updatedOuts := TxOutputs{}
-					outsBytes := b.Get(vin.Txid)
-					outs := DeserializeOutputs(outsBytes)
-					
-					for outIdx, out := range outs.Outputs {
-						if outIdx != vin.Vout {
-							updatedOuts.Outputs = append(updatedOuts.Outputs, out)
-						}
-					}
-					
-					if len(updatedOuts.Outputs) == 0 {
-						err := b.Delete(vin.Txid)
-						if err != nil {
-							log.Panic(err)
-						}
-					} else {
-						err := b.Put(vin.Txid, updatedOuts.Serialize())
-						if err != nil {
-							log.Panic(err)
-						}
-					}
-				}
-			}
-			
-			newOutputs := TxOutputs{}
-			for _, out := range tx.Vout {
-				newOutputs.Outputs = append(newOutputs.Outputs, out)
-			}
-			err := b.Put(tx.ID, newOutputs.Serialize())
-			if err != nil {
-				log.Panic(err)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		log.Panic(err)
-	}
 }

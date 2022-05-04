@@ -1,13 +1,12 @@
 package main
 
 import (
+	"cyain/utils"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
-	
-	"cyain/utils"
 )
 
 type CLI struct{}
@@ -120,13 +119,19 @@ func (cli *CLI) validateArgs() {
 }
 
 func (cli *CLI) createBlockchain(address string) {
+	if !ValidateAddress(address) {
+		log.Panic("ERROR: Address is not valid")
+	}
 	bc := CreateBlockchain(address)
-	bc.db.Close()
+	defer bc.db.Close()
+	
+	UTXOSet := UTXOSet{bc}
+	UTXOSet.Reindex()
 	fmt.Println("Done!")
 }
 
 func (cli *CLI) printChain() {
-	bc := NewBlockchain("")
+	bc := NewBlockchain()
 	defer bc.db.Close()
 	
 	bci := bc.Iterator()
@@ -154,30 +159,36 @@ func (cli *CLI) send(from, to string, amount int) {
 		log.Panic("ERROR: Recipient address is not valid")
 	}
 	
-	bc := NewBlockchain(from)
+	bc := NewBlockchain()
+	UTXOSet := UTXOSet{bc}
 	defer bc.db.Close()
 	
 	tx := NewUTXOTransaction(from, to, amount, bc)
-	bc.MineBlock([]*Transaction{tx})
+	cbtx := NewCoinbaseTx(from, "")
+	txs := []*Transaction{cbtx, tx}
+	
+	newBlock := bc.MineBlock(txs)
+	UTXOSet.Update(newBlock)
 	fmt.Println("Success!")
 }
 
 func (cli *CLI) getBalance(address string) {
-	//if !ValidateAddress(address) {
-	//	log.Panic("ERROR: Address is not valid")
-	//}
-	bc := NewBlockchain(address)
+	if !ValidateAddress(address) {
+		log.Panic("ERROR: Address is not valid")
+	}
+	bc := NewBlockchain()
+	UTXOSet := UTXOSet{bc}
 	defer bc.db.Close()
 	
 	balance := 0
 	pubKeyHash := utils.Base58Decode([]byte(address))
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
-	UTXOs := bc.FindUTXO(pubKeyHash)
+	UTXOs := UTXOSet.FindUTXO(pubKeyHash)
 	
 	for _, out := range UTXOs {
 		balance += out.Value
 	}
-
+	
 	fmt.Printf("Balance of '%s': %d\n", address, balance)
 }
 
