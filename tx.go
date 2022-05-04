@@ -86,6 +86,17 @@ func (outs TxOutputs) Serialize() []byte {
 	return buff.Bytes()
 }
 
+func DeserializeOutputs(data []byte) TxOutputs {
+	var outputs TxOutputs
+	
+	dec := gob.NewDecoder(bytes.NewReader(data))
+	err := dec.Decode(&outputs)
+	if err != nil {
+		log.Panic(err)
+	}
+	return outputs
+}
+
 func NewTxOutput(value int, address string) *TxOutput {
 	txo := &TxOutput{
 		value,
@@ -307,6 +318,26 @@ func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[s
 	unspentOutputs := make(map[string][]int)
 	accumulated := 0
 	db := u.BlockChain.db
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(utxoBucket))
+		c := b.Cursor()
+		
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			txID := hex.EncodeToString(k)
+			outs := DeserializeOutputs(v)
+			
+			for outIdx, out := range outs.Outputs {
+				if out.IsLockedWithKey(pubkeyHash) && accumulated < amount {
+					accumulated += out.Value
+					unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
 	
-	
+	return accumulated, unspentOutputs
 }
