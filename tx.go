@@ -107,7 +107,7 @@ func NewTxOutput(value int, address string) *TxOutput {
 	return txo
 }
 
-func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transaction {
+func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 	
@@ -117,7 +117,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transactio
 	}
 	wallet := wallets.GetWallet(from)
 	pubKeyHash := HashPubKey(wallet.PublicKey)
-	acc, validOutputs := bc.FindSpendableOutputs(pubKeyHash, amount)
+	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
 	
 	if acc < amount {
 		log.Panic("ERROR: Not enough funds")
@@ -145,7 +145,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transactio
 	
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
-	bc.SignTransaction(&tx, wallet.PrivateKey)
+	UTXOSet.BlockChain.SignTransaction(&tx, wallet.PrivateKey)
 	
 	return &tx
 }
@@ -241,6 +241,10 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 }
 
 func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
+	if tx.IsCoinbase() {
+		return true
+	}
+	
 	txCopy := tx.TrimmedCopy()
 	curve := elliptic.P256()
 	
@@ -290,11 +294,13 @@ func (u UTXOSet) Reindex() {
 		if err != nil {
 			log.Panic(err)
 		}
+		
 		return nil
 	})
 	if err != nil {
 		log.Panic(err)
 	}
+	
 	UTXO := u.BlockChain.FindUTXO()
 	
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -305,11 +311,13 @@ func (u UTXOSet) Reindex() {
 			if err != nil {
 				log.Panic(err)
 			}
+			
 			err = b.Put(key, outs.Serialize())
 			if err != nil {
 				log.Panic(err)
 			}
 		}
+		
 		return nil
 	})
 }
@@ -318,6 +326,7 @@ func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[s
 	unspentOutputs := make(map[string][]int)
 	accumulated := 0
 	db := u.BlockChain.db
+	
 	err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
 		c := b.Cursor()
@@ -333,6 +342,7 @@ func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[s
 				}
 			}
 		}
+		
 		return nil
 	})
 	if err != nil {

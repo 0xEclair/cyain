@@ -163,7 +163,7 @@ func (cli *CLI) send(from, to string, amount int) {
 	UTXOSet := UTXOSet{bc}
 	defer bc.db.Close()
 	
-	tx := NewUTXOTransaction(from, to, amount, bc)
+	tx := NewUTXOTransaction(from, to, amount, &UTXOSet)
 	cbtx := NewCoinbaseTx(from, "")
 	txs := []*Transaction{cbtx, tx}
 	
@@ -211,3 +211,9 @@ func (cli *CLI) listAddresses() {
 		fmt.Println(address)
 	}
 }
+
+// A: RJaShsJmFJneYjtT1eWPmaafFyVny2HYS
+// B: bRCq8V2LKacxPXiKVzMPKwMoP5Lt1LiX2
+// createblockchain -address RJaShsJmFJneYjtT1eWPmaafFyVny2HYS
+// send -from RJaShsJmFJneYjtT1eWPmaafFyVny2HYS -to bRCq8V2LKacxPXiKVzMPKwMoP5Lt1LiX2 -amount 1
+// getbalance -address RJaShsJmFJneYjtT1eWPmaafFyVny2HYS
