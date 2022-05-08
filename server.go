@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -104,4 +106,30 @@ func handleConnection(conn net.Conn, bc *BlockChain) {
 	}
 	
 	conn.Close()
+}
+
+func handleVersion(request []byte, bc *BlockChain) {
+	var buff bytes.Buffer
+	var payload version
+	
+	buff.Write(request[commandLength:])
+	dec:=gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	myBestHeight := bc.GetBestHeight()
+	foreignerBestHeight := payload.BaseHeight
+	
+	if myBestHeight < foreignerBestHeight {
+		sendGetBlocks(payload.AddrFrom)
+	} else if myBestHeight > foreignerBestHeight {
+		sendVersion(payload.AddrFrom, bc)
+	}
+	
+	if !nodeIsKnown(payload.AddrFrom) {
+		knownNodes = append(knownNodes, payload.AddrFrom)
+	}
 }
