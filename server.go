@@ -12,8 +12,34 @@ import (
 
 type version struct {
 	Version    int
-	BaseHeight int
+	BestHeight int
 	AddrFrom   string
+}
+
+func handleVersion(request []byte, bc *BlockChain) {
+	var buff bytes.Buffer
+	var payload version
+	
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	myBestHeight := bc.GetBestHeight()
+	foreignerBestHeight := payload.BestHeight
+	
+	if myBestHeight < foreignerBestHeight {
+		sendGetBlocks(payload.AddrFrom)
+	} else if myBestHeight > foreignerBestHeight {
+		sendVersion(payload.AddrFrom, bc)
+	}
+	
+	// sendAddr(payload.AddrFrom)
+	if !nodeIsKnown(payload.AddrFrom) {
+		knownNodes = append(knownNodes, payload.AddrFrom)
+	}
 }
 
 type getblocks struct {
@@ -89,6 +115,39 @@ func bytesToCommand(bytes []byte) string {
 	return fmt.Sprintf("%s", command)
 }
 
+type addr struct {
+	AddrList []string
+}
+
+func sendGetBlocks(address string) {
+	payload := gobEncode(getblocks{nodeAddress})
+	request := append(commandToBytes("getblocks"), payload...)
+	
+	sendData(address, request)
+}
+
+func requestBlocks() {
+	for _, node := range knownNodes {
+		sendGetBlocks(node)
+	}
+}
+
+func handleAddr(request []byte) {
+	var buff bytes.Buffer
+	var payload addr
+	
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	knownNodes = append(knownNodes, payload.AddrList...)
+	fmt.Printf("There are %d known nodes now!\n", len(knownNodes))
+	requestBlocks()
+}
+
 func handleConnection(conn net.Conn, bc *BlockChain) {
 	request, err := ioutil.ReadAll(conn)
 	if err != nil {
@@ -132,7 +191,7 @@ func handleVersion(request []byte, bc *BlockChain) {
 	}
 	
 	myBestHeight := bc.GetBestHeight()
-	foreignerBestHeight := payload.BaseHeight
+	foreignerBestHeight := payload.BestHeight
 	
 	if myBestHeight < foreignerBestHeight {
 		sendGetBlocks(payload.AddrFrom)
@@ -337,4 +396,26 @@ func handleTx(request []byte, bc *Blockchain) {
 			}
 		}
 	}
+}
+
+func gobEncode(data interface{}) []byte {
+	var buff bytes.Buffer
+	
+	enc := gob.NewEncoder(&buff)
+	err := enc.Encode(data)
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	return buff.Bytes()
+}
+
+func nodeIsKnown(addr string) bool {
+	for _, node := range knownNodes {
+		if node == addr {
+			return true
+		}
+	}
+	
+	return false
 }
