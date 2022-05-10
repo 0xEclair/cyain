@@ -113,7 +113,8 @@ func NewGenesisBlock(coinbase *Transaction) *Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
-func NewBlockchain() *BlockChain {
+func NewBlockchain(nodeID string) *BlockChain {
+	dbFile := fmt.Sprintf(dbFile, nodeID)
 	if dbExists() == false {
 		fmt.Println("No existing blockchain found. Create one first.")
 		os.Exit(1)
