@@ -15,6 +15,12 @@ type version struct {
 	AddrFrom   string
 }
 
+type getdata struct {
+	AddrFrom string
+	Type     string
+	ID       []byte
+}
+
 const(
 	protocol = "tcp"
 	nodeVersion = 1
