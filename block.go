@@ -158,7 +158,8 @@ func dbExists() bool {
 	return true
 }
 
-func CreateBlockchain(address string) *BlockChain {
+func CreateBlockchain(address string, nodeid string) *BlockChain {
+	dbFile := fmt.Sprintf(dbFile, nodeid)
 	if dbExists() {
 		fmt.Println("Blockchain already exists.")
 		os.Exit(1)

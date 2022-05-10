@@ -107,15 +107,10 @@ func NewTxOutput(value int, address string) *TxOutput {
 	return txo
 }
 
-func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 	
-	wallets, err := NewWallets()
-	if err != nil {
-		log.Panic(err)
-	}
-	wallet := wallets.GetWallet(from)
 	pubKeyHash := HashPubKey(wallet.PublicKey)
 	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
 	
@@ -124,23 +119,21 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
 	}
 	
 	for txid, outs := range validOutputs {
-		txID, _ := hex.DecodeString(txid)
+		txID, err := hex.DecodeString(txid)
+		if err != nil {
+			log.Panic(err)
+		}
+		
 		for _, out := range outs {
-			// 引用了之前的out
-			input := TxInput{
-				txID,
-				out,
-				nil,
-				wallet.PublicKey,
-			}
+			input := TxInput{txID, out, nil, wallet.PublicKey}
 			inputs = append(inputs, input)
 		}
 	}
 	
+	from := fmt.Sprintf("%s", wallet.GetAddress())
 	outputs = append(outputs, *NewTxOutput(amount, to))
-	
 	if acc > amount {
-		outputs = append(outputs, *NewTxOutput(acc-amount, from))
+		outputs = append(outputs, *NewTxOutput(acc-amount, from)) // a change
 	}
 	
 	tx := Transaction{nil, inputs, outputs}
@@ -424,6 +417,27 @@ func (u UTXOSet) Update(block *Block) {
 	if err != nil {
 		log.Panic(err)
 	}
+}
+
+func (u UTXOSet) CountTransactions() int {
+	db := u.BlockChain.db
+	counter := 0
+	
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(utxoBucket))
+		c := b.Cursor()
+		
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			counter++
+		}
+		
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	return counter
 }
 
 func DeserializeTransaction(data []byte) Transaction {

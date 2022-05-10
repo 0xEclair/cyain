@@ -85,11 +85,11 @@ func checksum(payload []byte) []byte {
 	return secondSHA[:addressChecksumLen]
 }
 
-func NewWallets() (*Wallets, error) {
+func NewWallets(nodeid string) (*Wallets, error) {
 	wallets := Wallets{}
 	wallets.Wallets = make(map[string]*Wallet)
 	
-	err := wallets.LoadFromFile()
+	err := wallets.LoadFromFile(nodeid)
 	
 	return &wallets, err
 }
@@ -117,7 +117,8 @@ func (ws Wallets) GetWallet(address string) Wallet {
 	return *ws.Wallets[address]
 }
 
-func (ws *Wallets) LoadFromFile() error {
+func (ws *Wallets) LoadFromFile(nodeid string) error {
+	wallet_file := fmt.Sprintf(wallet_file, nodeid)
 	if _, err := os.Stat(wallet_file); os.IsNotExist(err) {
 		return err
 	}
