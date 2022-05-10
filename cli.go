@@ -172,11 +172,11 @@ func (cli *CLI) send(from, to string, amount int) {
 	fmt.Println("Success!")
 }
 
-func (cli *CLI) getBalance(address string) {
+func (cli *CLI) getBalance(address string, nodeid string) {
 	if !ValidateAddress(address) {
 		log.Panic("ERROR: Address is not valid")
 	}
-	bc := NewBlockchain()
+	bc := NewBlockchain(nodeid)
 	UTXOSet := UTXOSet{bc}
 	defer bc.db.Close()
 	
